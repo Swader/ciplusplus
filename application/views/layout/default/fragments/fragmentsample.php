@@ -1,0 +1,1 @@
+<p>Here is proof that fragments work, because I am rendering the title: "{{title}}".</p>

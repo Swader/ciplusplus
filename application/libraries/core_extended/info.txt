@@ -1,0 +1,8 @@
+The core_extended classes provide a way to extend the core of CodeIgniter without tampering with
+the original files, and without polluting the original core folder with prefixed MY_* classes.
+
+These classes are loaded with the ClassmapAutoloader, which reads a classmap leading it to these classes.
+See the docblock in ClassmapAutoloader for more information.
+
+This set of classes was made to provide better support for upgrading to a new CI version later on.
+All you need to do is switch out the /system folder.
