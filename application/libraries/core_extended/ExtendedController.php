@@ -1,331 +1,193 @@
 <?php
+/**
+ * The ExtendedController has been extended with request method functionality.
+ *
+ * @category      Core
+ * @package       Core
+ * @license       BSD License
+ * @version       1.0.0.0
+ * @since         2012-01-17
+ * @author        Bruno Škvorc <bruno@skvorc.me>
+ */
+class ExtendedController extends CI_Controller
+{
+
+    /** @var \View */
+    protected $view;
+
     /**
-     * See info.txt
-     *
-     * The ExtendedController has been extended with layout functionality.
-     * See the /views/layout folder for a demo of a Twitter Bootstrap based
-     * theme.
-     *
-     * @category      Core
-     * @package       Core
-     * @license       BSD License
-     * @version       1.0.0.0
-     * @since         2012-01-17
-     * @author        Bruno Škvorc <bruno@skvorc.me>
+     * The constructor loads the site configuration and sets the site title
      */
-    class ExtendedController extends CI_Controller
+    public function __construct()
     {
+        parent::__construct();
+        $this->view = new View($this);
+    }
 
-        protected $sLayout = null;
-        protected $sLayoutFragments = array();
+    /**
+     * Retrieves the specified POST parameter, if it exists. If not, the default is retrieved.
+     * If a $ctype is specified, the param is also checked against this condition. If this test returns false, the default is returned.
+     *
+     * @param string $value Name of param to retrieve
+     * @param mixed $default The default value that gets returned in case the param does not exist and/or fails the ctype check.
+     * @param string $ctype See ctype functions for options. Options are cytpe function name suffixes (e.g. 'alnum' or 'digit')
+     * @return mixed
+     */
+    protected function getPostParam($value, $default = null, $ctype = null)
+    {
+        return $this->getParam($value, $default, $ctype, 'POST');
+    }
 
-        protected $aLocalMeta = array();
+    /**
+     * Retrieves the specified GET parameter, if it exists. If not, the default is retrieved.
+     * If a $ctype is specified, the param is also checked against this condition. If this test returns false, the default is returned.
+     *
+     * @param string $value Name of param to retrieve
+     * @param mixed $default The default value that gets returned in case the param does not exist and/or fails the ctype check.
+     * @param string $ctype See ctype functions for options. Options are cytpe function name suffixes (e.g. 'alnum' or 'digit')
+     * @return mixed
+     */
+    protected function getGetParam($value, $default = null, $ctype = null)
+    {
+        return $this->getParam($value, $default, $ctype, 'GET');
+    }
 
-        protected $sViewFile = '';
-        protected $sViewFolder = '';
+    /**
+     * Retrieves the specified FILE parameter, if it exists. If not, the default is retireved.
+     *
+     * @param string $value Name of param to retrieve
+     * @param mixed $default The default value that gets returned in case the param does not exist and/or fails the ctype check.
+     * @return mixed
+     */
+    protected function getFileParam($value, $default = null)
+    {
+        return $this->getParam($value, $default, null, 'FILE');
+    }
 
-        protected $sTitle = '';
-        protected $aTagValues = array();
+    /**
+     * Retrieves the specified parameter, if it exists. If not, the default is retrieved.
+     * If a $ctype is specified, the param is also checked against this condition. If this test returns false, the default is returned.
+     *
+     * @param string $value Name of param to retrieve
+     * @param mixed $default The default value that gets returned in case the param does not exist and/or fails the ctype check.
+     * @param string $ctype See ctype functions for options. Options are cytpe function name suffixes (e.g. 'alnum' or 'digit')
+     * @param string $method Can be POST, GET, FILE or * (* means any, in this order: GET, POST, FILE)
+     * @throws \Exception
+     * @return mixed
+     */
+    protected function getParam($value, $default = null, $ctype = null, $method = '*')
+    {
+        $param = $default;
 
-        protected $view;
-
-        /**
-         * The constructor loads the site configuration and sets the site title
-         */
-        public function __construct()
-        {
-            parent::__construct();
-            $this->view = new View($this);
-            $this->config->load('site', false, false);
-            $this->sTitle = $this->config->item('title');
-            $this->tagValueSet('title', $this->sTitle);
+        switch (strtoupper($method)) {
+            case "GET":
+                if (isset($_GET[$value]))
+                    $param = $_GET[$value];
+                break;
+            case "POST":
+                if (isset($_POST[$value]))
+                    $param = $_POST[$value];
+                break;
+            case "FILE":
+                if (isset($_FILES[$value]))
+                    $param = $_FILES[$value];
+                break;
+            case "*":
+                if (isset($_GET[$value]))
+                    $param = $_GET[$value];
+                elseif (isset($_POST[$value]))
+                    $param = $_POST[$value]; elseif (isset($_FILES[$value]))
+                    $param = $_FILES[$value];
+                break;
+            default:
+                break;
         }
 
-        /**
-         * Use this method to change the name of the view file you'd like to render
-         * Useful when several actions share the same view file
-         *
-         * @param string $sName
-         *
-         * @return ExtendedController
-         */
-        public function setViewFile($sName)
-        {
-            $this->sViewFile = $sName;
-
-            return $this;
-        }
-
-        /**
-         * Use this method to change the directory in which the app should
-         * look for the view file. By default, it will correspond to the controller
-         * path, but in the views folder. For example, if a controller called "welcome"
-         * is in the controllers/admin folder, the app will look for the view in
-         * views/admin/welcome/
-         *
-         * @param string $sString
-         *
-         * @return ExtendedController
-         */
-        public function setViewFolder($sString)
-        {
-            $this->sViewFolder = $sString;
-
-            return $this;
-        }
-
-        /**
-         * Returns the set view file.
-         * If no custom view file was set, returns the expected default
-         *
-         * @return string
-         */
-        public function getViewFile()
-        {
-            if (empty($this->sViewFile)) {
-                $this->sViewFile = $this->router->method;
-            }
-
-            return $this->sViewFile;
-        }
-
-        /**
-         * Returns the set view folder.
-         * If no custom view folder was set, returns the default one it will expect upon rendering
-         *
-         * @return string
-         */
-        public function getViewFolder()
-        {
-            if (empty($this->sViewFolder)) {
-                return APPPATH . 'views/' . $this->router->directory . '/' . $this->router->class . '/';
-            }
-
-            return $this->sViewFolder;
-        }
-
-        /**
-         * Overwrites site's title attribute with new value
-         *
-         * @param string $sString
-         *
-         * @return ExtendedController
-         */
-        public function setTitle($sString)
-        {
-            $this->sTitle = $sString;
-
-            return $this;
-        }
-
-        /**
-         * Appends a given string to the title.
-         * I.E. If the title is "My Site" and "- Profiles" is passed into this
-         * method, the new title will be "Profiles - My Site".
-         *
-         * @param string $sString
-         *
-         * @return ExtendedController
-         */
-        public function appendToTitle($sString)
-        {
-            $this->sTitle = $this->sTitle . $sString;
-
-            return $this;
-        }
-
-        /**
-         * Prepends a given string to the title.
-         * I.E. If the title is "My Site" and "Profiles - " is passed into this
-         * method, the new title will be "Profiles - My Site".
-         *
-         * @param string $sString
-         *
-         * @return ExtendedController
-         */
-        public function prependToTitle($sString)
-        {
-            $this->sTitle = $sString . $this->sTitle;
-
-            return $this;
-        }
-
-        /**
-         * Returns the currently set title
-         *
-         * @return string
-         */
-        public function getTitle() {
-            return $this->sTitle;
-        }
-
-        public function tagValueSet($sTag, $sValue) {
-
-        }
-
-        public function tagValueRemove($sTag) {
-
-        }
-
-        public function tagValueGet($sTag) {
-
-        }
-
-        protected function render($aData = array(), $sFile = '', $sAltPath = '')
-        {
-            extract($aData);
-
-            $sLayoutFile = $this->getLayoutFolder() . 'layout.php';
-            if (!is_readable($sLayoutFile)) {
-                throw new \Exception('Layout file not found: ' . $sLayoutFile);
+        if ($ctype) {
+            $sFunctionName = 'ctype_' . $ctype;
+            if (!function_exists($sFunctionName)) {
+                throw new \Exception('Invalid ctype function: ' . $sFunctionName);
             } else {
-                ob_start();
-                require_once $sLayoutFile;
-                $sRenderedLayout = ob_get_clean();
-            }
-
-            $aTagValues = array(
-                'title' => $this->getTitle(),
-                'meta' => $this->getMeta(),
-                ''
-            );
-
-
-            $sFile = (empty($sFile)) ? $this->router->method : $sFile;
-            $sPath = $this->getViewFolder() . $sFile . '.php';
-            if (!empty($sAltPath)) {
-                $sPath = $sAltPath;
-            }
-            if (!is_readable($sPath)) {
-                throw new \Exception('File not found: ' . $sPath);
-            } else {
-                require_once $sPath;
-            }
-
-            return true;
-        }
-
-        /**
-         * Resets layout to default, as if you never did anything with it.
-         * This means the default layout is used.
-         *
-         * @return ExtendedController
-         */
-        public function resetLayout()
-        {
-            $this->sLayout = null;
-
-            return $this;
-        }
-
-        /**
-         * Sets the layout file to be used as the theme
-         *
-         * @param $sName
-         *
-         * @return ExtendedController
-         */
-        public function setLayout($sName)
-        {
-            $this->sLayout = (string)$sName;
-
-            return $this;
-        }
-
-        /**
-         * Returns the defined layout, or null if not defined
-         * If layout is null or "default", default layout is used.
-         *
-         * @return null
-         */
-        public function getLayout()
-        {
-            return $this->sLayout;
-        }
-
-        /**
-         * Returns the path to the folder of the defined layout
-         *
-         * @return string
-         */
-        protected function getLayoutFolder()
-        {
-            if (empty($this->sLayout)) {
-                $this->setLayout('default');
-            }
-
-            return LAYOUTS_FOLDER . $this->getLayout() . '/';
-        }
-
-        /**
-         * Fetches and renders a layout fragment
-         *
-         * @param       $sName
-         * @param array $aData
-         *
-         * @return ExtendedController
-         */
-        public function renderLayoutFragment($sName, $aData = array())
-        {
-            echo $this->fetchLayoutFragment($sName, $aData);
-
-            return $this;
-        }
-
-        /**
-         * Fetches a layout fragment and returns it for rendering or storing
-         *
-         * @param       $sFragmentName
-         * @param array $aData
-         *
-         * @return string
-         * @throws Exception
-         */
-        public function fetchLayoutFragment($sFragmentName, $aData = array())
-        {
-            if (is_array($aData)) {
-                extract($aData);
-            }
-            $sPath = $this->getLayoutFolder() . 'fragments/' . $sFragmentName . '.php';
-            if (!is_readable($sPath)) {
-                throw new \Exception('File fragment ' . $sFragmentName . ' not found in ' . $sPath);
-            } else {
-                ob_start();
-                require_once $sPath;
-
-                return ob_get_clean();
-            }
-        }
-
-        protected function renderMeta()
-        {
-            $aMeta = $this->getMeta();
-            if (!empty($aMeta)) {
-                foreach ($aMeta as $sName => &$aValues) {
-                    if (
-                        is_string($sName)
-                        && is_array($aValues)
-                        && !empty($aValues)
-                        && isset($aValues['content'])
-                        && isset($aValues['attr'])
-                    ) {
-                        echo '<meta ' . $aValues['attr'] . '="' . $sName . '" content="' . $aValues['content'] . '" />';
-                    }
+                if (!$sFunctionName($param)) {
+                    $param = $default;
                 }
             }
-
-            return $this;
         }
 
-        /**
-         * Loads the general config meta and returns it merged with the locally defined meta from
-         * the controller child instance
-         *
-         * @return array
-         */
-        protected function getMeta()
-        {
-            return array_merge($this->config->item('meta'), $this->aLocalMeta);
-        }
-
+        return $param;
     }
+
+    /**
+     * Fetches one array of all params, merged GET, POST and FILES. The order of importance is ascending, which means POST overrides GET, and FILES overrides POST.
+     * @return array
+     */
+    protected function getAllParams()
+    {
+        return array_merge($_GET, $_POST, $_FILES);
+    }
+
+    /**
+     * Redirects user to the page he came from. Useful when logging in to return user to whichever site he used to log in.
+     * If the referrer is identical to the current page, the user is redirected to the home page to avoid an infinite loop.
+     * @return void
+     */
+    protected function redirectToReferer()
+    {
+        $url = (!empty($_SERVER['HTTPS'])) ? "https://" . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'] : "http://" . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
+        if ($_SERVER['HTTP_REFERER'] == $url) {
+            $this->_redirect($this->config->item('base_url'));
+        }
+        $this->_redirect($_SERVER['HTTP_REFERER']);
+    }
+
+    /**
+     * Redirects to any url
+     * @param  $url
+     * @return void
+     */
+    protected function redirect($url)
+    {
+        if (strpos($url, "/") === 0)
+            $url = rtrim(WEBPATH, "/") . $url;
+        header("Location: " . $url);
+        return;
+    }
+
+    /**
+     * Is the request method POST?
+     * @return bool
+     */
+    protected function requestIsPost()
+    {
+        return ($_SERVER['REQUEST_METHOD'] == 'POST');
+    }
+
+    /**
+     * Is the request method GET?
+     * @return bool
+     */
+    protected function requestIsGet()
+    {
+        return ($_SERVER['REQUEST_METHOD'] == 'GET');
+    }
+
+    /**
+     * Is the request method PUT?
+     * @return bool
+     */
+    protected function requestIsPut()
+    {
+        return ($_SERVER['REQUEST_METHOD'] == 'PUT');
+    }
+
+    /**
+     * Is the request method DELETE?
+     * @return bool
+     */
+    protected function requestIsDelete()
+    {
+        return ($_SERVER['REQUEST_METHOD'] == 'DELETE');
+    }
+
+
+}
