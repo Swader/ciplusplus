@@ -15,8 +15,14 @@ class ExtendedController extends CI_Controller
     /** @var \View */
     protected $view;
 
+    /** @var CI_Config */
+    public $config;
+
+    /** @var CI_Router */
+    public $router;
+
     /**
-     * The constructor loads the site configuration and sets the site title
+     * The constructor initializes the view
      */
     public function __construct()
     {
@@ -131,13 +137,13 @@ class ExtendedController extends CI_Controller
      * If the referrer is identical to the current page, the user is redirected to the home page to avoid an infinite loop.
      * @return void
      */
-    protected function redirectToReferer()
+    protected function redirectToReferrer()
     {
         $url = (!empty($_SERVER['HTTPS'])) ? "https://" . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'] : "http://" . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
         if ($_SERVER['HTTP_REFERER'] == $url) {
-            $this->_redirect($this->config->item('base_url'));
+            $this->redirect($this->config->item('base_url'));
         }
-        $this->_redirect($_SERVER['HTTP_REFERER']);
+        $this->redirect($_SERVER['HTTP_REFERER']);
     }
 
     /**
@@ -148,7 +154,7 @@ class ExtendedController extends CI_Controller
     protected function redirect($url)
     {
         if (strpos($url, "/") === 0)
-            $url = rtrim(WEBPATH, "/") . $url;
+            $url = rtrim($this->config->item('base_url'), "/") . $url;
         header("Location: " . $url);
         return;
     }

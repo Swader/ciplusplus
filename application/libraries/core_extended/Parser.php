@@ -132,7 +132,12 @@
             }
 
             $aTags = $this->extractTags($mContent);
-            foreach ($aTagValues as $sTag => $sValue) {
+            foreach ($aTagValues as $sTag => &$sValue) {
+
+                if (is_object($sValue) && method_exists($sValue, '__toString')) {
+                    $sValue = call_user_func(array($sValue, '__toString'));
+                }
+
                 if (in_array($sTag, $aTags)) {
                     $sValue = trim($sValue);
                     if (empty($sValue) || !is_string($sTag) || (!is_numeric($sValue) && !is_string($sValue))) {

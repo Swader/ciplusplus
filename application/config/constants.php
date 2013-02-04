@@ -38,6 +38,7 @@
 
     define('CLASSMAP_PATH', APPPATH . 'config/classmap.php');
     define('LAYOUTS_FOLDER', APPPATH. 'views/layout/');
+    define('VIEW_FRAGMENTS_FOLDER', APPPATH. 'views/fragments/');
 
 /* End of file constants.php */
 /* Location: ./application/config/constants.php */

@@ -18,7 +18,7 @@ class View
     protected $sLayoutFragments = array();
 
     /** @var array */
-    protected $aLocalMeta = array();
+    protected $aLocalMeta = null;
 
     /** @var string */
     protected $sViewFile = '';
@@ -31,6 +31,12 @@ class View
     /** @var \ExtendedController */
     protected $controller;
 
+    /** @var array */
+    protected $aProtectedTags = array('title', 'meta', 'content');
+
+    /** @var array */
+    public $data = array();
+
     /**
      * The constructor loads the site configuration and sets the site title
      */
@@ -39,6 +45,7 @@ class View
         $controller->config->load('site', false, false);
         $this->aTagValues['title'] = $controller->config->item('title');
         $this->controller = $controller;
+        $this->getMeta();
         $this->parser = new Parser();
     }
 
@@ -187,16 +194,16 @@ class View
      */
     public function tagValueSet($sTag, $sValue)
     {
-        if (in_array($sTag, array('content', 'title', 'meta'))) {
+        if (in_array($sTag, $this->aProtectedTags)) {
             throw new Exception('"content", "title" and "meta" are protected tags and cannot be used.');
         }
 
-        if (is_scalar($sTag) && is_scalar($sValue)) {
+        if (is_scalar($sTag) && (is_scalar($sValue) || (is_object($sValue) && method_exists($sValue, '__toString')))) {
             $this->aTagValues[$sTag] = $sValue;
 
             return $this;
         }
-        throw new Exception('Both values must be scalar in order to be parsable.');
+        throw new Exception('Tag => Values must be scalar => scalar pairs, or value must be object with __toString method.');
     }
 
     /**
@@ -240,7 +247,7 @@ class View
      */
     public function tagValueGet($sTag)
     {
-        if (array_key_exists($sTag, $this->aTagValue)) {
+        if (array_key_exists($sTag, $this->aTagValues)) {
             return $this->aTagValues[$sTag];
         } else {
             return null;
@@ -257,7 +264,8 @@ class View
      */
     public function render($aData = array())
     {
-        extract($aData);
+        $aMergedData = array_merge($aData, $this->data);
+        extract($aMergedData);
 
         $sLayoutFile = $this->getLayoutFolder() . 'layout.php';
         if (!is_readable($sLayoutFile)) {
@@ -274,11 +282,31 @@ class View
         $sPath = $this->getTemplateFolder() . $sFile . '.php';
 
         if (!is_readable($sPath)) {
-            throw new \Exception('File not found: ' . $sPath);
+            throw new \Exception('View file not found: ' . $sPath);
         } else {
             ob_start();
             require_once $sPath;
             $sRenderedView = ob_get_clean();
+        }
+
+        foreach ($aMergedData as $key => &$value) {
+            $sKeyName = 'var_'.$key;
+            $this->aTagValues[$sKeyName] = $value;
+        }
+
+        $aTags = array_merge($this->parser->extractTags(array($sRenderedLayout, $sRenderedView)));
+        foreach ($aTags as &$sTag) {
+            if (strpos($sTag, 'vf_') === 0) {
+                // View fragment tag detected
+                $sFragmentContent = $this->fetchViewFragment(str_replace('vf_', '', $sTag), $this->aTagValues);
+            } else if (strpos($sTag, 'lf_') === 0) {
+                // Layout fragment tag detected
+                $sFragmentContent = $this->fetchLayoutFragment(str_replace('lf_', '', $sTag), $this->aTagValues);
+            }
+            if (isset($sFragmentContent)) {
+                $this->parser->doParseRef($this->aTagValues, $sFragmentContent);
+                $this->aTagValues[$sTag] = $sFragmentContent;
+            }
         }
 
         $this->parser->doParseRef($this->aTagValues, $sRenderedView);
@@ -287,8 +315,6 @@ class View
         $this->parser->doParseRef($this->aTagValues, $sRenderedLayout);
 
         echo $sRenderedLayout;
-
-        return true;
     }
 
     /**
@@ -374,7 +400,7 @@ class View
         }
         $sPath = $this->getLayoutFolder() . 'fragments/' . $sFragmentName . '.php';
         if (!is_readable($sPath)) {
-            throw new \Exception('File fragment ' . $sFragmentName . ' not found in ' . $sPath);
+            throw new \Exception('Layout fragment ' . $sFragmentName . ' not found in ' . $sPath);
         } else {
             ob_start();
             require_once $sPath;
@@ -383,9 +409,64 @@ class View
         }
     }
 
-    public function addMeta($aArray)
+    /**
+     * Fetches a layout fragment and returns it for rendering or storing
+     *
+     * @param string $sFragmentName
+     * @param array  $aData
+     *
+     * @return string
+     * @throws Exception
+     */
+    public function fetchViewFragment($sFragmentName, $aData = array())
     {
+        if (is_array($aData)) {
+            extract($aData);
+        }
+        $sPath =  \VIEW_FRAGMENTS_FOLDER . $sFragmentName . '.php';
+        if (!is_readable($sPath)) {
+            throw new \Exception('View fragment ' . $sFragmentName . ' not found in ' . $sPath);
+        } else {
+            ob_start();
+            require_once $sPath;
 
+            return ob_get_clean();
+        }
+    }
+
+    /**
+     * Adds a meta entry to the site
+     * @param string $sName The name of the meta entry (e.g. viewport)
+     * @param array $aArray Array of the meta's values.
+     * MUST contain keys "attr" (e.g. "name"), and "content" (e.g. "width=device-width")
+     *
+     * Example use: $this->view->addMeta('viewport', array('attr' => 'name', 'content' => 'width=device-width'))
+     *
+     * Meta needs to be unique per name, so a new one set to the same name will overwrite the old one.
+     *
+     * @throws Exception
+     * @return View
+     */
+    public function addMeta($sName, $aArray)
+    {
+        if (isset($aArray['attr']) && isset($aArray['content'])) {
+            $this->aLocalMeta[$sName] = $aArray;
+        } else {
+            throw new \Exception('Invalid meta format. Please read docs.');
+        }
+        return $this;
+    }
+
+    /**
+     * Removes the meta entry of a given name
+     * @param string $sName
+     * @return View
+     */
+    public function removeMeta($sName) {
+        if (isset($this->aLocalMeta[$sName])) {
+            unset($this->aLocalMeta[$sName]);
+        }
+        return $this;
     }
 
     /**
@@ -395,10 +476,9 @@ class View
      */
     protected function returnRenderedMeta()
     {
-        $aMeta = $this->getMeta();
-        if (!empty($aMeta)) {
+        if (!empty($this->aLocalMeta)) {
             ob_start();
-            foreach ($aMeta as $sName => &$aValues) {
+            foreach ($this->aLocalMeta as $sName => &$aValues) {
                 if (
                     is_string($sName)
                     && is_array($aValues)
@@ -424,7 +504,10 @@ class View
      */
     public function getMeta()
     {
-        return array_merge($this->controller->config->item('meta'), $this->aLocalMeta);
+        if ($this->aLocalMeta === null) {
+            $this->aLocalMeta = $this->controller->config->item('meta');
+        }
+        return $this->aLocalMeta;
     }
 
 }
